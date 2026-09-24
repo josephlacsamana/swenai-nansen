@@ -1,26 +1,35 @@
-# Swenai × Nansen
+# Swenai × Nansen: on-chain flow that makes trade decisions
 
 **Nansen data never renders as a dashboard here. It makes decisions.**
 
 It sources trade signals, overrules the chart, and disarms a live Hyperliquid
 trade button on the same venue the order would land on.
 
-This repo is the Nansen layer of [Swenai](https://getswenai.com), a production
-crypto agent with real users. Everything below runs against the live API in one
-command, with no dependencies and no build step.
+In plain terms: [Nansen](https://www.nansen.ai) is an API that labels crypto
+wallets and tracks what they buy and sell on-chain. [Hyperliquid](https://hyperliquid.xyz)
+is a decentralized perpetuals exchange. [Swenai](https://getswenai.com) is a
+production crypto trading assistant with real users. This repo is the layer
+where the first feeds the third, and can veto an order on the second.
+
+Everything below runs against the live Nansen API in one command, with no
+dependencies and no build step.
 
 ---
 
 ## Run it in two minutes
 
+**You need:** Node.js 18 or newer (macOS, Linux and Windows all work) and a
+Nansen API key, free to create at https://app.nansen.ai/api. Nothing else: no
+`npm install`, no bundler, no framework.
+
 ```bash
 git clone https://github.com/josephlacsamana/swenai-nansen && cd swenai-nansen
-cp .env.example .env          # paste your key from https://app.nansen.ai/api
+cp .env.example .env          # then paste your key into the .env file
 node demo.mjs PENGU
 ```
 
-Node 18+ is the only requirement. There is nothing to install: no `npm install`,
-no bundler, no framework. One run costs **5 Nansen credits**.
+One run makes 5 API calls and costs **9 Nansen credits** (four 1-credit reads
+and one 5-credit read).
 
 Try `node demo.mjs BONK`, `WIF`, `PEPE`, or `ETH`. The interesting output
 appears on tokens that are actively being distributed.
@@ -53,6 +62,29 @@ Real output, PENGU, 2026-09-23:
 
 That is the whole thesis. The number every tool shows you said accumulation.
 The cohort split said the opposite, and the trade did not get placed.
+
+---
+
+## Use it in your own code
+
+`src/nansen.mjs` has no dependencies and no build step, so it drops into any
+Node project as-is:
+
+```js
+import { Nansen, resolveToken } from "./src/nansen.mjs";
+
+const nansen = new Nansen(process.env.NANSEN_API_KEY);
+const token = await resolveToken("PENGU");           // its deepest real DEX market
+const read = await nansen.cohortFlow(token.chain, token.tokenAddress);
+
+console.log(read.verdict);   // "retail bid, smart exit"
+console.log(read.cohorts);   // [{ key: "top_pnl", label: "Top-PnL wallets", netUsd: 68787.8, wallets: 3 }, ...]
+```
+
+Every method returns plain objects and throws on an HTTP error, so you decide
+how to degrade. In production, Swenai wraps each call in a 15-minute cache and
+turns errors into `null`, so the product behaves exactly as it did before
+Nansen existed.
 
 ---
 
@@ -149,6 +181,19 @@ debugging time and are the reason this repo is worth reading:
 
 Also: dates go as `{"date":{"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}}`, and on
 `/smart-money/perp-trades`, `lookback_hours` is top-level, not inside `filters`.
+
+---
+
+## If something goes wrong
+
+| You see | Cause | Fix |
+|---|---|---|
+| `NANSEN_API_KEY not found` | no `.env` file | `cp .env.example .env` and paste the key |
+| `HTTP 401` or `403` | wrong or expired key | regenerate it at https://app.nansen.ai/api |
+| `HTTP 402` or a credits error | out of credits | top up on the same page; one run costs 9 |
+| `HTTP 429` | rate limited | wait a second and retry |
+| `No DEX market found for X` | the ticker has no on-chain pool DexScreener knows | try `PENGU`, `PEPE`, `BONK`, `WIF` or `ETH` |
+| `No cohort split available` | no labelled-wallet activity on that token in 24h | normal on small or new tokens; try a larger one |
 
 ---
 
