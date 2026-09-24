@@ -14,7 +14,7 @@ command, with no dependencies and no build step.
 ## Run it in two minutes
 
 ```bash
-git clone https://github.com/<you>/swenai-nansen && cd swenai-nansen
+git clone https://github.com/josephlacsamana/swenai-nansen && cd swenai-nansen
 cp .env.example .env          # paste your key from https://app.nansen.ai/api
 node demo.mjs PENGU
 ```
