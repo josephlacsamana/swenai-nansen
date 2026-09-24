@@ -1,0 +1,14 @@
+{
+  "name": "swenai-nansen",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Nansen API integration from Swenai: on-chain flow that makes trade decisions instead of rendering a dashboard. Meridian Buildathon entry.",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "demo": "node demo.mjs",
+    "calls": "node scripts/count-calls.mjs"
+  },
+  "keywords": ["nansen", "onchain", "smart-money", "hyperliquid", "trading"],
+  "license": "MIT"
+}
