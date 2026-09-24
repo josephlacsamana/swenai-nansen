@@ -274,27 +274,56 @@ export class Nansen {
   }
 }
 
+/** Canonical contracts for the tickers the README suggests. Two jobs:
+ *  1. A clone can never win the search for these - DexScreener lists dogwifhat
+ *     as "$WIF", so a plain symbol match missed it and a $0 BSC "WIF" won.
+ *  2. The demo still runs if DexScreener is down (pinned address, no price). */
+const KNOWN = {
+  PENGU: { chain: "solana",   tokenAddress: "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv" },
+  PEPE:  { chain: "ethereum", tokenAddress: "0x6982508145454Ce325dDbE47a25d4ec3d2311933" },
+  BONK:  { chain: "solana",   tokenAddress: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" },
+  WIF:   { chain: "solana",   tokenAddress: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm" },
+  WETH:  { chain: "ethereum", tokenAddress: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
+};
+
 /** Resolve a ticker to its deepest real DEX market (DexScreener, no key).
  *  Ranked by min(liquidity, volume) - a spoofed pool shows huge liquidity on
  *  no volume, and ranking on the minimum makes that impossible to win. */
 export async function resolveToken(symbol) {
   const FLOW_ALIAS = { BTC: "WBTC", ETH: "WETH" }; // majors trade on-chain wrapped
-  const q = FLOW_ALIAS[symbol.toUpperCase()] ?? symbol;
-  const res = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(q)}`, {
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) return null;
-  const { pairs } = await res.json();
-  const best = (pairs ?? [])
-    .filter((p) => p.baseToken?.symbol?.toUpperCase() === q.toUpperCase())
+  const q = (FLOW_ALIAS[symbol.toUpperCase()] ?? symbol).toUpperCase();
+  const known = KNOWN[q] ?? null;
+  const clean = (s) => String(s ?? "").replace(/^\$/, "").toUpperCase(); // "$WIF" -> "WIF"
+
+  let pairs = [];
+  try {
+    // A pinned ticker is looked up by ADDRESS (exact, cannot miss); anything
+    // else by symbol text. The text search does not return dogwifhat for
+    // "WIF" at all, so for pinned tickers it was the wrong tool.
+    const endpoint = known
+      ? `https://api.dexscreener.com/latest/dex/tokens/${known.tokenAddress}`
+      : `https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(q)}`;
+    const res = await fetch(endpoint, { signal: AbortSignal.timeout(10000) });
+    if (res.ok) pairs = (await res.json()).pairs ?? [];
+  } catch { /* DexScreener unreachable - the pinned address below still works */ }
+
+  const best = pairs
     .filter((p) => Nansen.chain(p.chainId))
+    // Pinned ticker: only its canonical contract counts. Otherwise: symbol match.
+    .filter((p) => known
+      ? p.chainId === known.chain && p.baseToken?.address?.toLowerCase() === known.tokenAddress.toLowerCase()
+      : clean(p.baseToken?.symbol) === q)
     .map((p) => ({
       chain: p.chainId,
       tokenAddress: p.baseToken.address,
       priceUsd: Number(p.priceUsd),
       liq: p.liquidity?.usd ?? 0,
       vol: p.volume?.h24 ?? 0,
+      source: "dexscreener",
     }))
     .sort((a, b) => Math.min(b.liq, b.vol) - Math.min(a.liq, a.vol))[0];
-  return best ?? null;
+
+  if (best) return best;
+  if (known) return { ...known, priceUsd: null, liq: null, vol: null, source: "builtin" };
+  return null;
 }

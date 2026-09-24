@@ -57,8 +57,9 @@ if (!token) {
   console.log(`  No DEX market found for ${SYMBOL}. Try PENGU, PEPE, BONK, WIF or ETH.\n`);
   process.exit(0);
 }
-console.log(`  ${SYMBOL} on ${C.cyan(token.chain)} · $${token.priceUsd} · liquidity ${usd(token.liq)} · 24h vol ${usd(token.vol)}`);
-console.log(C.dim(`  ${token.tokenAddress}`));
+const market = token.priceUsd ? ` · $${token.priceUsd} · liquidity ${usd(token.liq)} · 24h vol ${usd(token.vol)}` : C.dim(" · (market data unavailable, using the pinned address)");
+console.log(`  ${SYMBOL} on ${C.cyan(token.chain)}${market}`);
+console.log(C.dim(`  ${token.tokenAddress}${token.source === "builtin" ? "  (pinned canonical address)" : ""}`));
 
 // ── 2. the naive read ────────────────────────────────────────────────────────
 rule("2. THE NUMBER MOST TOOLS SHOW YOU");

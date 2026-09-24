@@ -28,6 +28,9 @@ cp .env.example .env          # then paste your key into the .env file
 node demo.mjs PENGU
 ```
 
+(On Windows `cmd.exe`, use `copy .env.example .env`; PowerShell and Git Bash
+accept `cp` as written.)
+
 One run makes 5 API calls and costs **9 Nansen credits** (four 1-credit reads
 and one 5-credit read).
 
