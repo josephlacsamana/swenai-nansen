@@ -14,12 +14,10 @@ overrules the chart, and refuses to arm a Hyperliquid order when smart money on 
 
 <p align="center">
   <a href="https://getswenai.com"><b>Live app: getswenai.com</b></a> &nbsp;·&nbsp;
+  <a href="https://x.com/josephweb3/status/2103788169401651505"><b>55 s demo video on X</b></a> &nbsp;·&nbsp;
   <a href="#try-it-in-under-10-minutes">Run it</a> &nbsp;·&nbsp;
   <a href="#how-it-maps-to-the-judging">Judging map</a>
 </p>
-
-<!-- DEMO_VIDEO_URL -->
-<!-- X_POST_URL -->
 
 <p align="center">
   <img alt="Swenai demo, 8 seconds: the voxel robot walks to the green NANSEN desk in the agent office on a real Nansen read, then a $USELESS 4h chart shows Nansen whale buys and sells pinned to its candles, with '11 whale buys, 1 sells, biggest $500K buy, Powered by Nansen API' in the header." src="docs/demo-preview.gif" width="820">
@@ -32,7 +30,7 @@ overrules the chart, and refuses to arm a Hyperliquid order when smart money on 
 |---|---|
 | Built on the Nansen API | Six endpoints in production on getswenai.com, [listed here](#1-data-integration-nansen-data-drives-the-logic) |
 | 1,000+ API calls | [How to verify them](#1000-calls-and-how-to-verify-them) |
-| 30 to 60 s demo video and X post | Coming with the X post (the GIF above is cut from the video) |
+| 30 to 60 s demo video and X post | [The 55 s demo on X](https://x.com/josephweb3/status/2103788169401651505), tagging @nansen_ai (the GIF above is cut from it) |
 | Public repo another builder can run | One command, about 5 s once you have a key: [run it](#try-it-in-under-10-minutes) |
 
 ---
@@ -208,13 +206,12 @@ if it errors or times out the card ships without it.
 The only number that counts is Nansen's own usage page for
 the key behind getswenai.com (app.nansen.ai/api, usage analytics).
 
-<!-- NANSEN_USAGE_SCREENSHOT: save the usage-analytics screenshot as docs/nansen-usage.png and replace this comment with:
-<p align="center"><img alt="Nansen usage analytics showing 1,000+ API calls" src="docs/nansen-usage.png" width="820"></p>
--->
+<p align="center"><img alt="Nansen API usage analytics for the key behind getswenai.com, 30-day view on 2026-09-26: 4,439 credits used in total, 611 today, peaking at 1,771 on 23 Sep, with a recent-requests log of 1-credit calls to /tgm/flows, /tgm/flow-intelligence and /token-screener" src="docs/nansen-usage.jpg" width="420"></p>
+<p align="center"><sub>Nansen's usage analytics for our key, 30-day view, 2026-09-26: 4,439 credits. Every endpoint we use costs 1 credit per call except <code>/smart-money/perp-trades</code> (5).</sub></p>
 
 Our own server-side counter tallies every 2xx Nansen response. Non-2xx responses are counted separately
-as failures; timeouts and network errors are not counted at all. It read **1,040 successful calls** on
-2026-09-26 at 06:32 UTC. It can undercount under concurrent load, so treat it as a floor.
+as failures; timeouts and network errors are not counted at all. It read **1,131 successful calls** for
+September on 2026-09-26 at 12:28 UTC. It can undercount under concurrent load, so treat it as a floor.
 The calls come from the running product (TA cards and agent answers, the office, the hourly signal
 generator), plus a sweep cron every 20 minutes that warms the cache and snapshots flow history:
 
