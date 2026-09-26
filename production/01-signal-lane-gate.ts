@@ -1,12 +1,15 @@
 // FROM: app/api/signals-gen/route.ts (live, runs hourly on getswenai.com)
-// Gate #5 is the Nansen veto: a long into heavy on-chain distribution never
-// becomes a published signal. Note it is one-directional - a data gap PASSES,
-// because a veto must never become a dependency.
-// Reference only: imports from the app, not runnable standalone.
+// Gate #5 is the Nansen veto: for DEX-listed candidates (untracked coins in the
+// trending and divergence lanes, the only ones built with a token contract), a
+// long into heavy on-chain distribution never becomes a published signal. The
+// BTC and bluechip lanes and tracked coins carry no contract and skip it. Note
+// it fails open: a data gap PASSES, because a veto must never become a
+// dependency.
+// Reference only: imports from the app, not runnable standalone. The code is
+// verbatim; the docstring below is trimmed of internal notes, and it predates
+// gate #5 (hence "four").
 
-/** SIGNALS v2 LANE GATES (2026-09-22, Joseph: "most of the trades in the agent
- * signal are useless because they are memecoins and some are not available in
- * perps"). Measured record at the time: lanes 17% winrate vs user fast-TA 45%.
+/** SIGNALS v2 LANE GATES (2026-09-22). [internal notes trimmed]
  * Four deterministic gates every lane candidate must clear; user-requested TA
  * is untouched. Returns null on pass, else the rejection reason (logged in the
  * cron response for the record). */

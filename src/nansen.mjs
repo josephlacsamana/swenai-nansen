@@ -22,8 +22,11 @@
  *
  * And one that will bite you silently: the screener DISCARDS filter keys it
  * does not recognise and still returns 200. A typo fails OPEN into a wrong
- * result set, so every filter we send is re-checked in code after the response.
+ * result set, so the numeric filters (price change, netflow, liquidity, market-cap
+ * floor) are re-checked in code after the response.
  */
+
+import { readFileSync } from "node:fs";
 
 const BASE = "https://api.nansen.ai/api/v1";
 
@@ -44,18 +47,28 @@ export class Nansen {
     if (FUSED.some((f) => path.includes(f))) {
       throw new Error(`Refusing to call ${path}: 100-500 credits and non-redistributable.`);
     }
-    const res = await fetch(`${BASE}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: this.key },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    let res;
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: this.key },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      err.path = path; // timeout or network error: no HTTP status
+      throw err;
+    }
     // Count only real calls: a 402/429 is not a call in Nansen's own log.
     const remaining = res.headers.get("x-nansen-credits-remaining");
     if (remaining !== null) this.creditsRemaining = Number(remaining);
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      throw new Error(`Nansen ${path} -> HTTP ${res.status} ${detail.slice(0, 200)}`);
+      const err = new Error(`Nansen ${path} -> HTTP ${res.status} ${detail.slice(0, 200)}`);
+      err.status = res.status; // 401 = bad key, 402 = out of credits, 429 = throttled
+      err.path = path;
+      err.detail = detail.split(this.key).join("[key]").replace(/\s+/g, " ").trim().slice(0, 200);
+      throw err;
     }
     this.calls++;
     this.onCall(path, this.calls);
@@ -204,9 +217,10 @@ export class Nansen {
    *
    * COMPLIANCE: this endpoint is in Nansen's no-redistribution tier, and the
    * policy extends to derived data. So this returns ONE WORD, it is never
-   * rendered as data, never stored, never sent to a third party, and in the
-   * product it is computed only for the account that can fire the order it
-   * gates. A decision is not a redistribution.
+   * rendered as data or sent to a third party, and in the product it is
+   * computed only for the account that can fire the order it gates, shown to
+   * that owner only as one word in the disarm banner, and kept only in the
+   * owner's own chat history. A decision is not a redistribution.
    * ───────────────────────────────────────────────────────────────────────── */
   async perpBias(symbol) {
     const sym = symbol.toUpperCase();
@@ -326,4 +340,51 @@ export async function resolveToken(symbol) {
   if (best) return best;
   if (known) return { ...known, priceUsd: null, liq: null, vol: null, source: "builtin" };
   return null;
+}
+
+/** The API key: NANSEN_API_KEY from the environment, else from the .env file
+ *  at `dotenvUrl`. Tolerant of the ways a .env gets saved on Windows: a UTF-8
+ *  BOM, UTF-16 LE (PowerShell 5.1's `>` redirect), CRLF line endings, and quotes
+ *  around the value. Returns null when there is no key. */
+export function loadApiKey(dotenvUrl) {
+  const clean = (v) => String(v ?? "").trim().replace(/^(["'])(.*)\1$/, "$2").trim() || null;
+  const fromEnv = clean(process.env.NANSEN_API_KEY);
+  if (fromEnv) return fromEnv;
+  let buf;
+  try { buf = readFileSync(dotenvUrl); } catch { return null; } // no .env file
+  const utf8Bom = buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf;
+  const text = buf[0] === 0xff && buf[1] === 0xfe
+    ? buf.subarray(2).toString("utf16le")             // UTF-16 LE, as PowerShell 5.1 writes it
+    : buf.subarray(utf8Bom ? 3 : 0).toString("utf8"); // UTF-8, with or without a BOM
+  // [ \t]* rather than \s*: an empty "NANSEN_API_KEY=" must not read the next line.
+  return clean(text.match(/^[ \t]*(?:export[ \t]+)?NANSEN_API_KEY[ \t]*=[ \t]*(.*)$/m)?.[1]);
+}
+
+/** Why a call failed, in plain words, for a person running the demo. Never
+ *  includes the key: the HTTP body is redacted in post(), and fetch's own
+ *  error text (which can quote a malformed key) is not used. */
+export function explainError(err) {
+  const s = err?.status;
+  const badChars = !s && /ByteString|header/i.test(String(err?.message));
+  const cause =
+    s === 401 ? "the key is wrong, expired, or not copied in full"
+    : s === 403 ? "the key is wrong, or its plan does not include this endpoint"
+    : s === 402 ? "the key is out of credits (one demo run needs 9)"
+    : s === 429 ? "rate limited: wait a minute and run again"
+    : s >= 500 ? "Nansen returned a server error: wait a minute and run again"
+    : s ? "Nansen refused the request"
+    : err?.name === "TimeoutError" ? "no answer from api.nansen.ai within 15 s"
+    : badChars ? "the key contains characters that cannot be sent in a request (re-save .env as plain UTF-8)"
+    : "could not reach api.nansen.ai: network error or offline";
+  let said = err?.detail || null; // the HTTP body, already key-redacted
+  try {
+    const j = JSON.parse(said);
+    said = [j?.message, j?.detail, j?.error].find((x) => typeof x === "string") ?? said;
+  } catch { /* not JSON: keep the text */ }
+  return {
+    what: s ? `HTTP ${s} on ${err.path}` : badChars ? `request not sent to ${err?.path ?? "Nansen"}` : `no response on ${err?.path ?? "the call"}`,
+    said,
+    cause,
+    keyProblem: [401, 402, 403].includes(s) || badChars, // worth saying where the key came from
+  };
 }
